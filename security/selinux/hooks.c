@@ -108,10 +108,6 @@ struct selinux_state selinux_state __rticdata;
 #else
 struct selinux_state selinux_state;
 #endif
-#ifdef CONFIG_KSU_SUSFS
-extern struct selinux_state fake_state;
-extern bool ksu_selinux_hide_running __read_mostly;
-#endif // #ifdef CONFIG_KSU_SUSFS
 
 /* SECMARK reference count */
 static atomic_t selinux_secmark_refcount = ATOMIC_INIT(0);
@@ -6478,11 +6474,6 @@ static int selinux_setprocattr(const char *name, void *value, size_t size)
 	u32 mysid = current_sid(), sid = 0, ptsid;
 	int error;
 	char *str = value;
-#ifdef CONFIG_KSU_SUSFS
-bool should_check_current = (likely(!strcmp(name, "current") &&
-								 current_uid().val >= 10000 &&
-								 ksu_selinux_hide_running));
-#endif // #ifdef CONFIG_KSU_SUSFS
 
 	/*
 	 * Basic control over ability to set these attributes at all.
@@ -6518,14 +6509,6 @@ bool should_check_current = (likely(!strcmp(name, "current") &&
 			str[size-1] = 0;
 			size--;
 		}
-#ifdef CONFIG_KSU_SUSFS
-		if (should_check_current) {
-			u32 tmp_sid = 0;
-			int fake_error = security_context_to_sid(&fake_state, value, size, &tmp_sid, GFP_KERNEL);
-			if (fake_error)
-				return fake_error;
-		}
-#endif // #ifdef CONFIG_KSU_SUSFS
 		error = security_context_to_sid(&selinux_state, value, size,
 						&sid, GFP_KERNEL);
 		if (error == -EINVAL && !strcmp(name, "fscreate")) {
@@ -7173,6 +7156,7 @@ static struct security_hook_list selinux_hooks[] __lsm_ro_after_init = {
 	LSM_HOOK_INIT(d_instantiate, selinux_d_instantiate),
 
 	LSM_HOOK_INIT(getprocattr, selinux_getprocattr),
+	LSM_HOOK_INIT(setprocattr, selinux_setprocattr),
 
 	LSM_HOOK_INIT(ismaclabel, selinux_ismaclabel),
 	LSM_HOOK_INIT(secctx_to_secid, selinux_secctx_to_secid),
